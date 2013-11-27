@@ -132,12 +132,15 @@ define('xooie/widgets/carousel', ['jquery', 'xooie/helpers', 'xooie/widgets/base
           return;
         }
 
-        if (direction === 'goto' && quantity > 1 && quantity <= items.length) {
-          pos = Math.round(items.eq(quantity - 1).position().left);
+        // if (direction === 'goto' && quantity > 1 && quantity <= items.length) {
+        //   pos = Math.round(items.eq(quantity - 1).position().left);
 
-          if (pos === 0) {
-            return;
-          }
+        //   if (pos === 0) {
+        //     return;
+        //   }
+         if (direction === 'goto' && quantity > 0 && quantity <= items.length) {
+         pos = Math.round(this.wrappers().width()*(quantity-1));
+
         } else {
           i = this.currentItem(direction === 'right');
 
@@ -307,6 +310,18 @@ define('xooie/widgets/carousel', ['jquery', 'xooie/helpers', 'xooie/widgets/base
 
         // TODO: make this delay adjustable
         self._timers.scroll = setTimeout(scrollComplete, 250);
+
+        // TODO: Make this part of lentils addon
+        self.controls().filter('[data-x-role*=goto]').not(self.currentItem()).removeClass('current').end().eq(self.currentItem()).addClass('current');
+
+    });
+
+    // Helene added to fix tabbing issue where slide was positioned with the focused element in the center
+    // When focusing an element within a slide, position the slide.
+    self.root().on('focus', 'a, input, select', function(event) {
+        var thisItem = $(this).closest('[id*="item"]');
+        var index = self._get_role_item().index(thisItem);
+        self._positioners.item.apply(self, ['goto', (index + 1).toString(), 'item']);
     });
 
     this.cropStyle(Carousel.createStyleRule('.' + this.instanceClass() + ' .' + this.cropClass() + ', .' + this.instanceClass() + '.' + this.cropClass()));
@@ -321,6 +336,9 @@ define('xooie/widgets/carousel', ['jquery', 'xooie/helpers', 'xooie/widgets/base
     function(){
       self.updateDimensions();
     });
+
+    // TODO: Make this part of lentils addon
+    self.controls().filter('[data-x-role*=goto]').not(self.currentItem()).removeClass('current').end().eq(self.currentItem()).addClass('current');
 
   });
 
@@ -524,6 +542,7 @@ define('xooie/widgets/carousel', ['jquery', 'xooie/helpers', 'xooie/widgets/base
 
   Carousel.createStyleRule('.' + Carousel.prototype.contentClass() + ' > *', {
     display: 'inline-block',
+    'vertical-align': 'top',
     zoom: '1',
     '*display': 'inline',
     'font-size': '1em'
@@ -624,7 +643,9 @@ define('xooie/widgets/carousel', ['jquery', 'xooie/helpers', 'xooie/widgets/base
     });
 
     //set the height of the wrapper's parent (or cropping element) to ensure we hide the scrollbar
-    this.cropStyle().style.height = height + 'px';
+    if (this.cropStyle() !== undefined) {
+        this.cropStyle().style.height = height + 'px';
+    }
 
     this.updateLimits();
   };

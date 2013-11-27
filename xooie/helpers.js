@@ -14,6 +14,15 @@
 *   limitations under the License.
 */
 
+/*
+*  Load jQuery before RequireJS and still use it as dependency in Xooie
+*  by mimicking the according part in jQuery, which isn’t executed
+*  due to the lack of define(), when it was reached.
+*/
+define('jquery', [], function() {
+    return jQuery;
+});
+
 /* Polyfill methods for Xooie */
 
 // Adds Array.prototype.indexOf functionality to IE<9 (From MDN)

@@ -14,11 +14,11 @@ module.exports = function(grunt) {
           },
           name: "xooie/xooie",
           include: [
-            "xooie/widgets/carousel",
+            "xooie/widgets/carousel"/*,
             "xooie/widgets/dropdown",
             "xooie/widgets/accordion",
             "xooie/widgets/tab",
-            "xooie/widgets/dialog"
+            "xooie/widgets/dialog"*/
           ],
           out: "source/javascripts/xooie-<%= pkg.version %>.js",
           optimize: "none"
@@ -33,11 +33,11 @@ module.exports = function(grunt) {
           },
           name: "xooie/xooie",
           include: [
-            "xooie/widgets/carousel",
+            "xooie/widgets/carousel"/*,
             "xooie/widgets/dropdown",
             "xooie/widgets/accordion",
             "xooie/widgets/tab",
-            "xooie/widgets/dialog"
+            "xooie/widgets/dialog"*/
           ],
           out: "source/javascripts/xooie-<%= pkg.version %>-min.js",
           optimize: "uglify"
@@ -93,6 +93,6 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-jslint');
 
   grunt.registerTask('test', ['jshint', 'jasmine']);
-  grunt.registerTask('build', ['test', 'requirejs']);
+  grunt.registerTask('build', ['requirejs']);
 
 };

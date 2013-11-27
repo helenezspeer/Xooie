@@ -15,6 +15,15 @@
 *   limitations under the License.
 */
 
+/*
+*  Load jQuery before RequireJS and still use it as dependency in Xooie
+*  by mimicking the according part in jQuery, which isn’t executed
+*  due to the lack of define(), when it was reached.
+*/
+define('jquery', [], function() {
+    return jQuery;
+});
+
 /* Polyfill methods for Xooie */
 
 // Adds Array.prototype.indexOf functionality to IE<9 (From MDN)
@@ -124,7 +133,14 @@ define('xooie/stylesheet', ['jquery', 'xooie/helpers'], function($, helpers) {
     
 
     function nameCheck (index, name) {
-        return document.styleSheets[index].ownerNode.getAttribute('id') === name;
+        var s = document.styleSheets[index];
+
+        if (!helpers.isUndefined(s.ownerNode)) {
+            return s.ownerNode.getAttribute('id') === name;
+        } else {
+            return s.id === name;
+        }
+        
     }
 
     var Stylesheet = function(name){
@@ -182,7 +198,9 @@ define('xooie/stylesheet', ['jquery', 'xooie/helpers'], function($, helpers) {
             } else {
                 //support for IE < 9
                 index = this.get().rules.length;
-                this.get().addRule(ruleName, propString, index);
+                if (propString !== "") {
+                    this.get().addRule(ruleName, propString, index);
+                }
                 rule = this.get().rules[index];
             }
         }
@@ -714,222 +732,6 @@ define('xooie/shared', ['jquery'], function($){
   return shared;
 });
 
-define('xooie/keyboard_navigation', ['jquery', 'xooie/helpers'], function($, helpers){
-  var selectors, keyboardNavigation, keybindings;
-
-
-  keybindings = {
-    37: function(event) {
-      moveFocus($(event.target), -1);
-
-      event.preventDefault();
-    },
-
-    38: function() {
-
-    },
-
-    39: function(event) {
-      moveFocus($(event.target), 1);
-
-      event.preventDefault();
-    },
-
-    40: function() {
-
-    }
-  };
-
-/** internal
- * Xooie.Widget._moveFocus(direction)
- * - direction (Integer): Determines whether or not to increment or decrement the index.  Can be 1 or -1.
- *
- * Moves focus to either the next or previous focusable item, if available.  Focus order follows the
- * tab order of the page (items without tabindex or tabindex=0 will be focused before tabindex=1).  Focusable
- * items with a tabindex=-1 will not be focused.
- **/
-  function moveFocus(current, direction) {
-    // TODO: Clean this up. It's a mess
-    // TODO: Write tests.
-    // TODO: Add detection of new contexts
-    // TODO: Add recollection of last focused item
-
-    var selector, selectors, tabindex, index, target;
-
-    var tabIndicies= [];
-
-    selectors = {
-      unindexed: ['[data-widget-type] a[href]:visible:not(:disabled):not([tabindex])',
-        '[data-widget-type] button:visible:not(:disabled):not([tabindex])',
-        '[data-widget-type] input:visible:not(:disabled):not([tabindex])',
-        '[data-widget-type] select:visible:not(:disabled):not([tabindex])',
-        '[data-widget-type] textarea:visible:not(:disabled):not([tabindex])',
-        '[data-widget-type] [tabindex=0]:visible:not(:disabled)'].join(','),
-      indexed: function(t) {
-        if (t > 0) {
-          return '[data-widget-type] [tabindex=' + t + ']:visible:not(:disabled)';
-        }
-      },
-      allIndexed: '[data-widget-type] [tabindex]:visible:not(:disabled)'
-    };
-
-    // jquery select the current item
-    current = $(current);
-
-    // we may not be focused on anything.  If that's the case, focus on the first focusable item
-    if (!current.is(selectors.unindexed) && !current.is(selectors.allIndexed)) {
-      // get the lowest tabindex
-      $(selectors.allIndexed).each(function(){
-        var i = helpers.toInt($(this).attr('tabindex'));
-
-        if (tabIndicies.indexOf(i) === -1 && i > 0) {
-          tabIndicies.push(i);
-        }
-      });
-
-      if (tabIndicies.length > 0) {
-        tabIndicies.sort(function(a,b) { return a-b; });
-      
-        target = $(selectors.indexed(tabIndicies[0])).first();
-      } else {
-        target = $(selectors.unindexed).first();
-      }
-
-      if (target.length > 0) {
-        target.focus();
-
-        return;
-      }
-    }
-
-    // get the current tabindex
-    tabindex = helpers.toInt(current.attr('tabindex'));
-
-    // check if tabindex is a number and not 0...
-    if (!tabindex) {
-      // if it is not, assume we're on an element that has no tab index and select other such elements
-      selector = selectors.unindexed;
-    } else {
-      // otherwise, select all items that are of the same tabindex
-      selector = selectors.indexed(tabindex);
-    }
-
-    // find the index of the current item
-    index = current.index(selector);
-
-    if (index + direction >= 0) {
-      // get the next/previous item
-      target = $(selector).eq(index + direction);
-
-      // Check to see if we have a valid target...
-      if (target.length > 0) {
-        // if it is, focus the target and return
-        target.focus();
-
-        return;
-      }
-    }
-
-    // if it is not, then we have several possibilities:
-    
-    // If the direction is 1 and tabindex is not a number or 0, then we are at the end of the tab order.  Do nothing.
-    if (direction === 1 && !tabindex) {
-      return;
-    // If the direction is 1 and the tabindex is a number, then we need to check for the presence of the next tabindex
-    } else if (direction === 1 && !isNaN(tabindex)) {
-      // Loop through all elements with a tab index
-      $(selectors.allIndexed).each(function() {
-        // Build a collection of all tab indicies greater than the current tab index:
-        var i = helpers.toInt($(this).attr('tabindex'));
-
-        if (i > tabindex && tabIndicies.indexOf(i) === -1 && i > 0) {
-          tabIndicies.push(i);
-        }
-      });
-
-      // If there are tab indicies that are greater than the current one...
-      if (tabIndicies.length > 0) {
-        // sort our tab indicies ascending
-        tabIndicies.sort(function(a, b) { return a-b; });
-
-        // we now have our new tab index
-        tabindex = tabIndicies[0];
-
-        // Get the first item of the new tab index
-        target = $(selectors.indexed(tabindex)).first();
-      } else {
-        // Otherwise, select the first unindexed item
-        target = $(selectors.unindexed).first();
-      }
-      
-    } else if (direction === -1 && isNaN(tabindex))  {
-      // In this case, we are at the first non-indexed focusable item.  We need to find the last indexed item.
-      // Loop through all elements with a tab index
-      $(selectors.allIndexed).each(function() {
-        var i = helpers.toInt($(this).attr('tabindex'));
-        // Build a collection of all tab indicies
-        if (tabIndicies.indexOf(i) === -1) {
-          tabIndicies.push(i);
-        }
-      });
-
-      if (tabIndicies.length > 0) {
-        // sort our tab indicies descending
-        tabIndicies.sort(function(a, b) { return b-a; });
-
-        // we now have our new tab index
-        tabindex = tabIndicies[0];
-
-        // Select the last indexed item
-        target = $(selectors.indexed(tabindex)).last();
-      }
-    } else if (direction === -1 && !isNaN(tabindex) && tabindex > 0) {
-      $(selectors.allIndexed).each(function(){
-        var i = helpers.toInt($(this).attr('tabindex'));
-
-        if (i < tabindex && tabIndicies.indexOf(i) === -1 && i > 0) {
-          tabIndicies.push(i);
-        }
-      });
-
-      if (tabIndicies.length > 0) {
-        // sort our tab indicies asceding
-        tabIndicies.sort(function(a, b) { return a-b; });
-
-        // we now have our new tab index
-        tabindex = tabIndicies[0];
-
-        // Select the last indexed item
-        target = $(selectors.indexed(tabindex)).last();
-      }
-    }
-
-    if (!helpers.isUndefined(target)) {
-      // assuming we have a target, focus it.
-      target.focus();
-    }
-    
-  }
-
-  var instantiated;
-
-  keyboardNavigation = function(){
-    if (instantiated) {
-      return instantiated;
-    }
-
-    $(document).on('keyup', function(event) {
-      if (helpers.isFunction(keybindings[event.which])) {
-        keybindings[event.which](event);
-      }
-    });
-
-    instantiated = this;
-  };
-
-  return keyboardNavigation;
-
-});
 /*
 * Copyright 2013 Comcast
 *
@@ -953,8 +755,8 @@ define('xooie/keyboard_navigation', ['jquery', 'xooie/helpers'], function($, hel
  * specific functionality.
  **/
 
-define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/shared', 'xooie/keyboard_navigation'], function($, $X, helpers, shared, keyboardNavigation) {
-
+define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/shared'], function ($, $X, helpers, shared) {
+  
   var Widget;
 
 /**
@@ -966,10 +768,12 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  **/
 
   $.event.special['xooie-init'] = {
-    add: function(handleObj) {
-      var id = $(this).data('xooieInstance');
-      if (typeof id !== 'undefined') {
-        var event = $.Event('xooie-init');
+    add: function (handleObj) {
+      var id, event;
+
+      id = $(this).data('xooieInstance');
+      if (!helpers.isUndefined(id)) {
+        event = $.Event('xooie-init');
         event.namespace = handleObj.namespace;
         event.data = handleObj.data;
 
@@ -991,7 +795,7 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  *
  * TODO: Test and document.
  **/
-  function roleDetails (name) {
+  function roleDetails(name) {
     return {
       processor: '_process_role_' + name,
       renderer: '_render_role_' + name,
@@ -1012,7 +816,7 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
     if (helpers.isUndefined(prototype[role.pluralName])) {
       prototype._definedRoles.push(name);
 
-      prototype[role.pluralName] = function() {
+      prototype[role.pluralName] = function () {
         return this[role.getter]();
       };
     }
@@ -1025,7 +829,7 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  * Recursively checks for the next available index in [[$X._instanceCache]] using [[$X._instanceIndex]]
  * as a reference point.  Returns the index.
  **/
-  function cacheInstance (instance) {
+   function cacheInstance (instance) {
     if (typeof instance !== 'undefined') {
       var index = $X._instanceIndex;
 
@@ -1041,6 +845,21 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
     }
   }
 
+  // function cacheInstance(instance) {
+  //   if (!helpers.isUndefined(instance)) {
+  //     var index = $X._instanceIndex;
+
+  //     $X._instanceIndex += 1;
+
+  //     if (!helpers.isUndefined($X._instanceCache[index])) {
+  //       $X._instanceCache[index] = instance;
+
+  //       return index;
+  //     }
+  //     return cacheInstance(instance);
+  //   }
+  // }
+
 /**
  * new Xooie.Widget(element[, addons])
  * - element (Element | String): A jQuery-selected element or string selector for the root element of this widget
@@ -1049,8 +868,8 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  * Instantiates a new Xooie widget, or returns an existing widget if it is already associated with the element passed.
  * Any addons passed into the constructor will be instantiated and added to the [[Xooie.Widget#addons]] collection.
  **/
-  Widget = function(element, addons) {
-    var self = this;
+  Widget = function (element, addons) {
+    var id, initCheck, self = this;
 
     element = $(element);
 
@@ -1059,19 +878,18 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
 
     //do instance tracking
     if (element.data('xooieInstance')) {
-      if (typeof $X._instanceCache[element.data('xooieInstance')] !== 'undefined'){
+      if (!helpers.isUndefined($X._instanceCache[element.data('xooieInstance')])) {
         element.trigger(this.get('refreshEvent'));
         return $X._instanceCache[element.data('xooieInstance')];
-      } else {
-        this.cleanup();
       }
+      this.cleanup();
     }
 
-    element.on(this.get('initEvent') + ' ' + this.get('refreshEvent'), function(){
+    element.on(this.get('initEvent') + ' ' + this.get('refreshEvent'), function () {
       self._applyRoles();
     });
 
-    var id = cacheInstance(this);
+    id = cacheInstance(this);
 
     this.set('id', id);
 
@@ -1080,17 +898,17 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
     element.addClass(this.get('className'))
            .addClass(this.get('instanceClass'));
 
-    var initCheck = function(){
-      var i;
+    initCheck = function () {
+      var i, addon = [];
 
       if (!self._extendCount || self._extendCount <= 0) {
 
-        if (typeof addons !== 'undefined') {
-          for (i = 0; i < addons.length; i+=1) {
-            new addons[i](self);
+        if (!helpers.isUndefined(addons)) {
+          for (i = 0; i < addons.length; i += 1) {
+            addon.push(new addons[i](self));
           }
         }
-        
+
         element.attr('data-xooie-instance', id);
 
         element.trigger(self.get('initEvent'));
@@ -1105,8 +923,6 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
     } else {
       initCheck();
     }
-
-    // new keyboardNavigation();
   };
 
 /** internal
@@ -1122,36 +938,32 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  **/
   Widget._renderMethods = {
     //TODO: make this a default template
-    'micro_template': function(template, view) {
-      if (typeof template.micro_render !== 'undefined') {
+    'micro_template': function (template, view) {
+      if (!helpers.isUndefined(template.micro_render)) {
         return $(template.micro_render(view));
-      } else {
-        return false;
       }
+      return false;
     },
 
-    'mustache': function(template, view) {
-      if (typeof Mustache !== 'undefined' && typeof Mustache.render !== 'undefined') {
+    'mustache': function (template, view) {
+      if (!helpers.isUndefined(Mustache) && !helpers.isUndefined(Mustache.render)) {
         return $(Mustache.render(template.html(), view));
-      } else {
-        return false;
       }
+      return false;
     },
 
-    'jsrender': function(template, view) {
-      if (typeof template.render !== 'undefined') {
+    'jsrender': function (template, view) {
+      if (!helpers.isUndefined(template.render)) {
         return $(template.render(view));
-      } else {
-        return false;
       }
+      return false;
     },
 
-    'underscore': function(template, view) {
-      if (typeof _ !== 'undefined' && typeof _.template !== 'undefined') {
+    'underscore': function (template, view) {
+      if (!helpers.isUndefined(_) && !helpers.isUndefined(_.template)) {
         return $(_.template(template.html())(view).trim());
-      } else {
-        return false;
       }
+      return false;
     }
   };
 
@@ -1163,7 +975,7 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  *
  * See [[Xooie.shared.defineWriteOnly]].
  **/
-  Widget.defineWriteOnly = function(name) {
+  Widget.defineWriteOnly = function (name) {
     shared.defineWriteOnly(this, name);
   };
 
@@ -1174,7 +986,7 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  *
  * See [[Xooie.shared.defineReadOnly]].
  **/
-  Widget.defineReadOnly = function(name, defaultValue){
+  Widget.defineReadOnly = function (name, defaultValue) {
     shared.defineReadOnly(this, name, defaultValue);
   };
 
@@ -1186,7 +998,7 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  * A method that defines a property as both readable and writable.  In reality it calls both [[Xooie.Widget.defineReadOnly]]
  * and [[Xooie.Widget.defineWriteOnly]].
  **/
-  Widget.define = function(name, defaultValue){
+  Widget.define = function (name, defaultValue) {
     this.defineReadOnly(name, defaultValue);
     this.defineWriteOnly(name);
   };
@@ -1196,13 +1008,13 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  *
  * TODO: This needs tests and documentation
  **/
-  Widget.defineRole = function(name) {
+  Widget.defineRole = function (name) {
     var role = roleDetails(name);
 
     roleDispatcher(name, this.prototype);
 
     if (!helpers.isFunction(this.prototype[role.getter])) {
-      this.prototype[role.getter] = function() {
+      this.prototype[role.getter] = function () {
         return this.root().find(role.selector);
       };
     }
@@ -1214,7 +1026,7 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  *
  * See [[Xooie.shared.extend]].
  **/
-  Widget.extend = function(constr){
+  Widget.extend = function (constr) {
     return shared.extend(constr, this);
   };
 
@@ -1226,10 +1038,11 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  * Creates a new css rule in the Xooie stylesheet.  If the rule exists, it will overwrite said rule.
  **/
  // TODO: update so that if the rule exists the properties are added to the rule
-  Widget.createStyleRule = function(selector, properties) {
-    if (typeof $X._stylesheet.addRule !== 'undefined') {
+  Widget.createStyleRule = function (selector, properties) {
+    if (!helpers.isUndefined($X._stylesheet.addRule)) {
       return $X._stylesheet.addRule(selector, properties);
     }
+    return false;
   };
 
 /**
@@ -1239,12 +1052,11 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  * Retrieves the css rule from the Xooie stylesheet using the provided `selector`.  If the rule is not
  * present in [[$X._styleRules]] then the method will check in [[$X._stylesheet]].
  **/
-  Widget.getStyleRule = function(selector) {
+  Widget.getStyleRule = function (selector) {
     if ($X._styleRules.hasOwnProperty(selector)) {
       return $X._styleRules[selector];
-    } else {
-      return $X._stylesheet.getRule(selector);
     }
+    return $X._stylesheet.getRule(selector);
   };
 
 /** internal
@@ -1406,7 +1218,7 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  *
  * See [[Xooie.shared.get]].
  **/
-  Widget.prototype.get = function(name) {
+  Widget.prototype.get = function (name) {
     return shared.get(this, name);
   };
 
@@ -1417,7 +1229,7 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  *
  * See [[Xooie.shared.set]].
  **/
-  Widget.prototype.set = function(name, value) {
+  Widget.prototype.set = function (name, value) {
     return shared.set(this, name, value);
   };
 
@@ -1427,7 +1239,7 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  * Removes the `className` and `instanceClass` classes and `data-xooie-instance` attribute from the root element.
  * Calls [[Xooie.Addon.cleanup]] for each addon.  This will permit the instance to be garbage collected.
  **/
-  Widget.prototype.cleanup = function() {
+  Widget.prototype.cleanup = function () {
     var name;
 
     for (name in this.addons()) {
@@ -1449,15 +1261,14 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  * Renders the template with the provided data by calling the method in [[Xooie.Widget.renderMethods]] based on the
  * template language specified.  Returns `$('<span>Error rendering template</span>')` when an error occurs
  **/
-  Widget.prototype.render = function(template, view) {
+  Widget.prototype.render = function (template, view) {
     var language = template.data('templateLanguage') || this.templateLanguage(),
       result = Widget._renderMethods[language](template, view);
 
     if (result === false) {
       return $('<span>Error rendering template</span>');
-    } else {
-      return result;
     }
+    return result;
   };
 
 /** internal
@@ -1468,7 +1279,7 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  * Generates an id string to be applied to an element of the specified role.  The format of
  * this id string is `x-[[Xooie.Widget#id]]-{role}-{index}`.
  **/
-  Widget.prototype._getRoleId = function(role, index) {
+  Widget.prototype._getRoleId = function (role, index) {
     return 'x-' + this.id() + '-' + role + '-' + index;
   };
 
@@ -1477,13 +1288,13 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  *
  * TODO: Test and document.
  **/
-  Widget.prototype._applyRoles = function() {
+  Widget.prototype._applyRoles = function () {
     var i, j, role, elements;
 
-    for (i=0; i < this._definedRoles.length; i+=1) {
+    for (i = 0; i < this._definedRoles.length; i += 1) {
       role = roleDetails(this._definedRoles[i]);
       elements = this[role.getter]();
-      
+
       if (elements.length === 0 && helpers.isFunction(this[role.renderer])) {
         elements = this[role.renderer]();
       }
@@ -1492,7 +1303,7 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
         return;
       }
 
-      for (j=0; j < elements.length; j+=1) {
+      for (j = 0; j < elements.length; j += 1) {
         $(elements[j]).attr('id', this._getRoleId(this._definedRoles[i], j));
       }
 
@@ -1509,8 +1320,8 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  * Checks to see if the addons object has been defined.  We can't define objects as
  * 'default' values for properties since the object will be the same for each instance.
  **/
-  Widget.prototype._process_addons = function(addons){
-    if (typeof addons === 'undefined'){
+  Widget.prototype._process_addons = function (addons) {
+    if (helpers.isUndefined(addons)) {
       addons = this._addons = {};
     }
 
@@ -1523,7 +1334,7 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  *
  * Adds the [[Xooie.Widget#namespace]] to the `refreshEvent`
  **/
-  Widget.prototype._process_refreshEvent = function(refreshEvent){
+  Widget.prototype._process_refreshEvent = function (refreshEvent) {
     return this.namespace() === '' ? refreshEvent : refreshEvent + '.' + this.namespace();
   };
 
@@ -1533,7 +1344,7 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  *
  * Adds the [[Xooie.Widget#namespace]] to the `initEvent`
  **/
-  Widget.prototype._process_initEvent = function(initEvent){
+  Widget.prototype._process_initEvent = function (initEvent) {
     return this.namespace() === '' ? initEvent : initEvent + '.' + this.namespace();
   };
 
@@ -1543,7 +1354,7 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  *
  * Adds the [[Xooie.Widget#namespace]] to the `className`
  **/
-  Widget.prototype._process_className = function(className) {
+  Widget.prototype._process_className = function (className) {
     return this.namespace() === '' ? className : className + '-' + this.namespace();
   };
 
@@ -1552,7 +1363,7 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  *
  * Creates an instanceClass string from the [[Xooie.Widget#namespace]] and [[Xooie.Widget#id]].
  **/
-  Widget.prototype._process_instanceClass = function() {
+  Widget.prototype._process_instanceClass = function () {
     return this.namespace() === '' ? 'widget-' + this.id() : this.namespace() + '-' + this.id();
   };
 
@@ -1777,12 +1588,15 @@ define('xooie/widgets/carousel', ['jquery', 'xooie/helpers', 'xooie/widgets/base
           return;
         }
 
-        if (direction === 'goto' && quantity > 1 && quantity <= items.length) {
-          pos = Math.round(items.eq(quantity - 1).position().left);
+        // if (direction === 'goto' && quantity > 1 && quantity <= items.length) {
+        //   pos = Math.round(items.eq(quantity - 1).position().left);
 
-          if (pos === 0) {
-            return;
-          }
+        //   if (pos === 0) {
+        //     return;
+        //   }
+         if (direction === 'goto' && quantity > 0 && quantity <= items.length) {
+         pos = Math.round(this.wrappers().width()*(quantity-1));
+
         } else {
           i = this.currentItem(direction === 'right');
 
@@ -1952,6 +1766,18 @@ define('xooie/widgets/carousel', ['jquery', 'xooie/helpers', 'xooie/widgets/base
 
         // TODO: make this delay adjustable
         self._timers.scroll = setTimeout(scrollComplete, 250);
+
+        // TODO: Make this part of lentils addon
+        self.controls().filter('[data-x-role*=goto]').not(self.currentItem()).removeClass('current').end().eq(self.currentItem()).addClass('current');
+
+    });
+
+    // Helene added to fix tabbing issue where slide was positioned with the focused element in the center
+    // When focusing an element within a slide, position the slide.
+    self.root().on('focus', 'a, input, select', function(event) {
+        var thisItem = $(this).closest('[id*="item"]');
+        var index = self._get_role_item().index(thisItem);
+        self._positioners.item.apply(self, ['goto', (index + 1).toString(), 'item']);
     });
 
     this.cropStyle(Carousel.createStyleRule('.' + this.instanceClass() + ' .' + this.cropClass() + ', .' + this.instanceClass() + '.' + this.cropClass()));
@@ -1966,6 +1792,9 @@ define('xooie/widgets/carousel', ['jquery', 'xooie/helpers', 'xooie/widgets/base
     function(){
       self.updateDimensions();
     });
+
+    // TODO: Make this part of lentils addon
+    self.controls().filter('[data-x-role*=goto]').not(self.currentItem()).removeClass('current').end().eq(self.currentItem()).addClass('current');
 
   });
 
@@ -2169,6 +1998,7 @@ define('xooie/widgets/carousel', ['jquery', 'xooie/helpers', 'xooie/widgets/base
 
   Carousel.createStyleRule('.' + Carousel.prototype.contentClass() + ' > *', {
     display: 'inline-block',
+    'vertical-align': 'top',
     zoom: '1',
     '*display': 'inline',
     'font-size': '1em'
@@ -2269,7 +2099,9 @@ define('xooie/widgets/carousel', ['jquery', 'xooie/helpers', 'xooie/widgets/base
     });
 
     //set the height of the wrapper's parent (or cropping element) to ensure we hide the scrollbar
-    this.cropStyle().style.height = height + 'px';
+    if (this.cropStyle() !== undefined) {
+        this.cropStyle().style.height = height + 'px';
+    }
 
     this.updateLimits();
   };
@@ -2416,808 +2248,3 @@ define('xooie/widgets/carousel', ['jquery', 'xooie/helpers', 'xooie/widgets/base
 
   return Carousel;
 });
-/*
-*   Copyright 2013 Comcast
-*
-*   Licensed under the Apache License, Version 2.0 (the "License");
-*   you may not use this file except in compliance with the License.
-*   You may obtain a copy of the License at
-*
-*       http://www.apache.org/licenses/LICENSE-2.0
-*
-*   Unless required by applicable law or agreed to in writing, software
-*   distributed under the License is distributed on an "AS IS" BASIS,
-*   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-*   See the License for the specific language governing permissions and
-*   limitations under the License.
-*/
-
-/** deprecated: 1.0
- * class Xooie.Dropdown < Xooie.Widget
- *
- * A widget used to hide and show content.
- * As of v1.0 this widget has been deprecated.  Use the more semantically appropriate
- * [[Xooie.Tooltip]], [[Xooie.Menu]], [[Xooie.Tab]], or [[Xooie.Accordion]] classes instead.
- **/
-define('xooie/widgets/dropdown', ['jquery', 'xooie/widgets/base'], function($, Base) {
-
-
-   var parseWhich = function(which) {
-        if (typeof which === 'string') {
-            which = which.split(',');
-            return which.map(function(string){ return parseInt(string, 10); });
-        } else if (typeof which === 'number') {
-            return [which];
-        }
-
-        return which;
-     };
-
-/**
- * Xooie.Dropdown(element[, addons])
- * - element (Element | String): A jQuery-selected element or string selector for the root element of this widget
- * - addons (Array): An optional collection of [[Xooie.Addon]] classes to be instantiated with this widget
- *
- * Instantiates a new Dropdown widget.  Creates event handlers to manage activating and deactivating the expanders.
- * Also adds methods to manipulate aria roles.
- **/
-    var Dropdown = Base.extend(function() {
-        var self = this,
-            handles = self.getHandle(),
-            expanders = self.getExpander();
-
-        this.handlers = {
-            off: function(event){
-                if ((typeof event.data.not !== 'undefined' && ($(event.data.not).is($(this)) || $(event.target).parents(event.data.not).length > 0)) || (typeof event.data.which !== 'undefined' && event.data.which.indexOf(event.which) === -1) || ($(event.target).is(self.getExpander(event.data.index)) || $(event.target).parents(self.dropdownExpanderSelector()).length > 0) && !$(event.target).is($(this))) {
-                    return true;
-                }
-
-                event.preventDefault();
-
-                self.collapse(event.data.index, event.data);
-            },
-
-            on: function(event){
-                var index = event.data.index || parseInt($(this).attr('data-dropdown-index'), 10),
-                    delay = event.data.delay,
-                    handle = $(this);
-
-                if ((typeof event.data.not !== 'undefined' && ($(event.data.not).is($(this)) || $(event.target).parents(event.data.not).length > 0)) || typeof event.data.which !== 'undefined' && event.data.which.indexOf(event.which) === -1) {
-                    return true;
-                }
-
-                event.preventDefault();
-
-                self.expand(index, event.data);
-            }
-        };
-
-        this.timers = {
-            expand: [],
-            collapse: [],
-            throttle: []
-        };
-
-        this.addHandlers('on');
-
-        this.root().on({
-            dropdownExpand: function(event, index){
-                self.removeHandlers('on', index);
-
-                self.addHandlers('off', index);
-
-                $(this).attr('aria-selected', true);
-                self.getExpander(index).attr('aria-hidden', false);
-            },
-
-            dropdownCollapse: function(event, index){
-                self.removeHandlers('off', index);
-
-                self.addHandlers('on', index);
-
-                $(this).attr('aria-selected', false);
-                self.getExpander(index).attr('aria-hidden', true);
-            }
-        }, this.dropdownHandleSelector());
-
-        this.root().on('xooie-init.dropdown xooie-refresh.dropdown', function(){
-            handles.each(function(index){
-                var handle = $(this),
-                    expander = expanders.eq(index);
-
-
-                handle.attr({
-                    'data-dropdown-index': index,
-                    'aria-selected': false
-                });
-                expander.attr({
-                    'data-dropdown-index': index,
-                    'aria-hidden': true
-                });
-            });
-        });
-
-        expanders.on('mouseover focus', function(){
-            var index = parseInt($(this).attr('data-dropdown-index'), 10);
-
-            if (self.timers.collapse[index]){
-                self.timers.collapse[index] = clearTimeout(self.timers.collapse[index]);
-
-                $(this).on('mouseleave blur', {index: index}, function(event){
-                    self.collapse(event.data.index, 0);
-                    $(this).unbind(event);
-                });
-            }
-        });
-
-    });
-
-    Dropdown.define('namespace', 'dropdown');
-
-    Dropdown.define('throttleDelay', 300);
-
-    Dropdown.define('triggers', {
-        on: {
-            focus: {
-                delay: 0
-            }
-        },
-        off: {
-            blur: {
-                delay: 0
-            }
-        }
-    });
-
-    Dropdown.defineReadOnly('dropdownHandleSelector', '[data-role="dropdown-handle"]');
-
-    Dropdown.defineReadOnly('dropdownExpanderSelector', '[data-role="dropdown-content"]');
-
-    Dropdown.defineReadOnly('activeDropdownClass', 'is-dropdown-active');
-
-    Dropdown.prototype.getTriggerHandle = function(triggerData, index){
-        var handles = this.getHandle(index);
-
-        if (triggerData.selector) {
-            return triggerData.selector === 'document' ? $(document) : $(triggerData.selector);
-        } else {
-            return handles;
-        }
-    };
-
-    Dropdown.prototype.addHandlers = function(state, index){
-        var trigger, handle, triggerData, countName;
-
-        triggerData = this.triggers()[state];
-
-        for (trigger in triggerData) {
-            if (typeof triggerData[trigger].which !== 'undefined') {
-                triggerData[trigger].which = parseWhich(triggerData[trigger].which);
-            }
-
-            countName = [trigger,state,'count'].join('-');
-
-            handle = this.getTriggerHandle(triggerData[trigger], index);
-
-            handle.data(countName, handle.data(countName) + 1 || 1);
-
-            handle.on(trigger, $.extend({delay: 0, index: index}, triggerData[trigger]), this.handlers[state]);
-        }
-    };
-
-    Dropdown.prototype.removeHandlers = function(state, index){
-        var trigger, handle, triggerData, countName, eventCount;
-
-        triggerData = this.triggers()[state];
-
-        for (trigger in triggerData) {
-            handle = this.getTriggerHandle(triggerData[trigger], index);
-
-            countName = [trigger,state,'count'].join('-');
-
-            eventCount = handle.data(countName) - 1;
-
-            if (eventCount <= 0) {
-                handle.unbind(trigger, this.handlers[state]);
-
-                handle.data(countName, 0);
-            } else {
-                handle.data(countName, eventCount);
-            }
-        }
-    };
-
-    Dropdown.prototype.getHandle = function(index){
-        var handles = this.root().find(this.dropdownHandleSelector());
-
-        return (typeof index !== 'undefined' && index >= 0) ? handles.eq(index) : handles;
-    };
-
-    Dropdown.prototype.getExpander = function(index){
-        var selectorString;
-
-        if (typeof index === 'undefined' || isNaN(index)) {
-            selectorString = this.dropdownExpanderSelector();
-        } else {
-            selectorString = this.dropdownExpanderSelector() + '[data-dropdown-index="' + index + '"]';
-        }
-
-        return this.root().find(selectorString);
-    };
-
-    Dropdown.prototype.setState = function(index, data, active){
-        if (typeof index === 'undefined' || isNaN(index)) {
-            return;
-        }
-
-        var state = active ? 'expand' : 'collapse',
-            counterState = active ? 'collapse' : 'expand',
-            delay = data.delay;
-
-        this.timers[counterState][index] = clearTimeout(this.timers[counterState][index]);
-
-        if (this.timers.throttle[index] || this.timers[state][index]) {
-            return;
-        }
-
-        this.timers[state][index] = setTimeout(function(i, _state, _active, _data) {
-            var expander = this.getExpander(i),
-                handle = this.getHandle(i),
-                self = this;
-
-            this.timers[_state][i] = clearTimeout(this.timers[_state][i]);
-
-            expander.toggleClass(this.activeDropdownClass(), _active);
-            this.getHandle(i).toggleClass(this.activeDropdownClass(), _active);
-
-            if (_active){
-                handle.trigger('dropdownExpand', [i, _data]);
-            } else {
-                handle.trigger('dropdownCollapse', [i, _data]);
-            }
-
-            if (this.throttleDelay() > 0){
-                this.timers.throttle[i] = setTimeout(function(){
-                    self.timers.throttle[i] = clearTimeout(self.timers.throttle[i]);
-                }, this.throttleDelay());
-            }
-
-        }.bind(this, index, state, active, data), delay);
-    };
-
-    Dropdown.prototype.expand = function(index, data) {
-        if (!this.getHandle(index).hasClass(this.activeDropdownClass())) {
-            this.setState(index, data, true);
-        }
-    };
-
-    Dropdown.prototype.collapse = function(index, data) {
-        if (this.getHandle(index).hasClass(this.activeDropdownClass())) {
-            this.setState(index, data, false);
-        }
-    };
-
-    return Dropdown;
-});
-/*
-*   Copyright 2013 Comcast
-*
-*   Licensed under the Apache License, Version 2.0 (the "License");
-*   you may not use this file except in compliance with the License.
-*   You may obtain a copy of the License at
-*
-*       http://www.apache.org/licenses/LICENSE-2.0
-*
-*   Unless required by applicable law or agreed to in writing, software
-*   distributed under the License is distributed on an "AS IS" BASIS,
-*   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-*   See the License for the specific language governing permissions and
-*   limitations under the License.
-*/
-
-/**
- * class Xooie.Tab < Xooie.Widget
- *
- * A widget that associates containers of information with "tabs".  The pattern is
- * designed to mimic the real-world concept of a filing cabinet, where content is
- * stored in folders with protruding tabs that label said content.
- *
- * The Tab widget should be used as a way to organize how content is displayed
- * visually.  Content is hidden until the associated tab is activated.
- **/
-define('xooie/widgets/tab', ['jquery', 'xooie/helpers', 'xooie/widgets/base', 'xooie/event_handler'], function($, helpers, Base, EventHandler) {
-
-  function setSelection(widget, selectedTabs) {
-    var activeTabs = widget.getActiveTabs();
-
-    activeTabs.not(selectedTabs).each(function() {
-      widget.deactivateTab($(this));
-    });
-
-    selectedTabs.not(activeTabs).each(function() {
-      widget.activateTab($(this));
-    });
-  }
-/**
- * Xooie.Tab@xooie-tab-active(event)
- * - event (Event): A jQuery event object
- *
- * An event that is fired when a tab is activated.  Triggers on the `root` element of the widget.
- *
- * ##### Event Properties
- * - **tabId** (String): The id of the tab that was activated.
- **/
-
- /**
- * Xooie.Tab@xooie-tab-inactive(event)
- * - event (Event): A jQuery event object
- *
- * An event that is fired when a tab is deactivated.  Triggers on the `root` element of the widget.
- *
- * ##### Event Properties
- * - **tabId** (String): The id of the tab that was deactivated.
- **/
-
-/**
- * new Xooie.Tab(element[, addons])
- * - element (Element | String): A jQuery-selected element or string selector for the root element of this widget
- * - addons (Array): An optional collection of [[Xooie.Addon]] classes to be instantiated with this widget
- *
- * Instantiates a new Tab instance.  See [[Xooie.Widget]] for more functionality.
- **/
-  var Tab = Base.extend(function(){
-    var self = this;
-
-    this._tabEvents = new EventHandler(this.namespace());
-
-    this._tabEvents.add({
-      keyup: function(event){
-        if ([13,32].indexOf(event.which) !== -1){
-          setSelection(self, self.selectTabs(event, $(this)));
-
-          event.preventDefault();
-        }
-      },
-
-      mouseup: function(event){
-        setSelection(self, self.selectTabs(event, $(this)));
-      },
-
-      click: function(event){
-        event.preventDefault();
-      }
-    });
-
-    // TODO: Test and document this.  Also, create a property for data-activate
-    this.root().on(this.initEvent(), function(){
-      self.activateTab(self.tabs().filter('[data-activate="true"]'));
-    });
-
-  });
-
-/** internal
- * Xooie.Tab#_namespace -> String
- *
- * See [[Xooie.Widget#_namespace]].
- * Default: `tab`.
- **/
-/**
- * Xooie.Tab#namespace([value]) -> String
- * - value: an optional value to be set.
- *
- * See [[Xooie.Widget#namespace]]
- **/
-  Tab.define('namespace', 'tab');
-
-/** internal
- * Xooie.Tab#_tabSelector -> String
- *
- * An alternative selector for a [[Xooie.Tab#tabs]]. This allows developers to specify a tab control that may not
- * be a child of the tab widget.
- **/
-/**
- * Xooie.Tab#tabSelector([value]) -> String
- * - value: an optional value to be set.
- *
- * The method for setting or getting [[Xooie.Tab#_tabSelector]].  Returns the current value of
- * [[Xooie.Tab#_tabSelector]] if no value is passed or sets the value.
- **/
-  Tab.define('tabSelector');
-
-/** internal
- * Xooie.Tab#_activeClass -> String
- *
- * A class string that is applied to active [[Xooie.Tab#tabs]] and [[Xooie.Tab#tabpanels]].
- * Default: `is-tab-active`.
- **/
-/**
- * Xooie.Tab#activeClass([value]) -> String
- * - value: an optional value to be set.
- *
- * The method for setting or getting [[Xooie.Tab#_activeClass]].  Returns the current value of
- * [[Xooie.Tab#_activeClass]] if no value is passed or sets the value.
- **/
-  Tab.defineReadOnly('activeClass', 'is-tab-active');
-
-/**
- * Xooie.Tab#tabpanels() -> Elements
- *
- * Tabpanels are elements that contain the content that is shown or hidden when the corresponding
- * [[Xooie.Tab#tabs]] is activated.
- * This role maps to the ARIA [tab role](http://www.w3.org/TR/wai-aria/roles#tab)
- **/
-  Tab.defineRole('tabpanel');
-
-/**
- * Xooie.Tab#tabs() -> Elements
- *
- * Tabs are elements that, when activated, also activate the corresponding [[Xooie.Tab#tabpanels]].
- * This role maps to the ARIA [tabpanel role](http://www.w3.org/TR/wai-aria/roles#tabpanel).
- **/
-  Tab.defineRole('tab');
-
-/**
- * Xooie.Tab#tablists() -> Elements
- *
- * A tablist is an element that contains all the [[Xooie.Tab#tabs]].  If any tabs are not decendants of
- * the tablist, ownership of the tab is indicated using the `aria-owns` attribute.
- * There should only be one tablist per tab widget.
- * This role maps to the ARIA [tablist role](http://www.w3.org/TR/wai-aria/roles#tablist)
- **/
-  Tab.defineRole('tablist');
-
-/**
- * Xooie.Tab#activateTab(tab)
- * - tab (Element): One of the [[Xooie.Tab#tabs]] associated with this widget.
- *
- * Activates the [[Xooie.Tab#tabs]] by adding the [[Xooie.Tab#activeClass]] class and setting the `aria-expanded` property to 'true'.
- * The method also activates the [[Xooie.Tab#tabpanels]] that is indicated by the tab's `aria-controls` attribute,
- * adding the [[Xooie.Tab#activeClass]] class and setting `aria-expanded` to 'true'.
- **/
-  Tab.prototype.activateTab = function(tab) {
-    tab.addClass(this.activeClass())
-       .attr('aria-selected', true);
-
-    $('#' + tab.attr('aria-controls')).addClass(this.activeClass())
-                                      .attr('aria-expanded', true)
-                                      .focus();
-
-    var e = $.Event('xooie-tab-active');
-
-    e.tabId = tab.attr('id');
-
-    this.root().trigger(e);
-  };
-
-/**
- * Xooie.Tab#deactivateTab(tab)
- * - tab (Element): One of the [[Xooie.Tab#tabs]] associated with this widget.
- *
- * Deactivates the [[Xooie.Tab#tabs]] by removing the [[Xooie.Tab#activeClass]] class and setting the `aria-expanded` property to 'false'.
- * The method also deactivates the [[Xooie.Tab#tabpanels]] that is indicated by the tab's `aria-controls` attribute,
- * removing the [[Xooie.Tab#activeClass]] class and setting `aria-expanded` to 'false'.
- **/
-  Tab.prototype.deactivateTab = function(tab) {
-    tab.removeClass(this.activeClass())
-       .attr('aria-selected', false);
-
-    $('#' + tab.attr('aria-controls')).removeClass(this.activeClass())
-                                      .attr('aria-expanded', false);
-
-    var e = $.Event('xooie-tab-inactive');
-
-    e.tabId = tab.attr('id');
-
-    this.root().trigger(e);
-  };
-
-/**
- * Xooie.Tab#selectTabs(event, selectedTab)
- * - event (Event): Browser event that triggered selectTabs call
- * - selectedTab (Element): Tab that was selected by a mouse or keyboard event
- *
- * Only called by mouse/keyboard event handlers to generate the list of
- * currently active tabs. Should return a jQuery collection of tabs that are
- * to be active. Any tabs which are currently active and not in the
- * collection will be deactivated, and likewise any tabs not currently active
- * and in the collection will be activated.
- *
- * Override this method to alter the behavior of the Tab widget.
- **/
-  Tab.prototype.selectTabs = function(event, selectedTab) {
-    return selectedTab;
-  };
-
-/**
- * Xooie.Tab#getActiveTabs() -> Elements
- *
- * Returns a jQuery-selected collection of all [[Xooie.Tab#tabs]] that currently have the
- * [[Xooie.Tab#activeClass]] class.
- **/
-  Tab.prototype.getActiveTabs = function() {
-    return this.tabs().filter('.' + this.activeClass());
-  };
-
-/** internal
- * Xooie.Tab#_process_role_tab(tabs) -> Element
- * - tabs (Element): A jQuery-selected collection of [[Xooie.Tab#tabs]]
- *
- * This method processes the elements that have been designated as [[Xooie.Tab#tabs]] with
- * the `data-x-role="tab"` attribute.  Tabs are given the [`role="tab"`](http://www.w3.org/TR/wai-aria/roles#tab) and [`aria-selected="false"`](http://www.w3.org/TR/wai-aria/states_and_properties#aria-selected)
- * [ARIA](http://www.w3.org/TR/wai-aria/) attributes.
- **/
-  Tab.prototype._process_role_tab = function(tabs){
-    var tabpanels = this.tabpanels(),
-        tab, panelId,
-        self = this;
-
-    tabs.attr('role', 'tab')
-        .attr('aria-selected', false);
-
-    tabs.each(function(index) {
-      tab = $(this);
-      panelId = tabpanels.eq(index).attr('id');
-
-      $(this).attr('aria-controls', panelId);
-
-      if ($(this).is('a')) {
-        $(this).attr('href', '#' + panelId);
-      }
-
-    });
-
-    tabs.on(this._tabEvents.handlers);
-    
-    return tabs;
-  };
-
-/** internal
- * Xooie.Tab#_get_role_tab() -> Element
- *
- * Internal method used to retrieve the [[Xooie.Tab#tabs]] for this widget.  If [[Xooie.Tab#tabSelector]] has been
- * defined then its value will be used to select from the DOM.  Otherwise, tabs will be selected from decendants of
- * the root using the `[data-x-role="tab"]` selector.
- **/
-  Tab.prototype._get_role_tab = function(){
-    if (!helpers.isUndefined(this.tabSelector())) {
-      return $(this.tabSelector());
-    } else {
-      return this.root().find('[data-x-role="tab"]');
-    }
-  };
-
-/** internal
- * Xooie.Tab#_render_role_tab() -> Elements
- *
- * TODO: Create this method to keep parity with the existing tab functionality
- **/
-  Tab.prototype._render_role_tab = function(){
-
-  };
-
-/** internal
- * Xooie.Tab#_process_role_tablist(tablist) -> Element
- * - tablist (Element): A jQuery-selected collection of [[Xooie.Tab#tablists]]
- *
- * This method processes the elements that have been designated as [[Xooie.Tab#tablists]] with
- * the `data-x-role="tablist"` attribute.  The tablist is given the [`role="tablist"`](http://www.w3.org/TR/wai-aria/roles#tablist)
- * [ARIA](http://www.w3.org/TR/wai-aria/) attributes.  If any [[Xooie.Tab#tabs]] are not decendants of the tab list, the ids of those
- * tabs are added to the [`aria-owns`](http://www.w3.org/TR/wai-aria/states_and_properties#aria-owns) attribute.
- **/
-  Tab.prototype._process_role_tablist = function(tablist) {
-    var tabs = this.tabs();
-
-    tablist.attr('role', 'tablist');
-
-    tabs.each(function(index) {
-      var owns, id;
-      if (tablist.has(this).length === 0) {
-        owns = tablist.attr('aria-owns') || '';
-
-        owns = owns.split(' ');
-
-        id = $(this).attr('id');
-
-        if (owns.indexOf(id) === -1) {
-          owns.push(id);
-        }
-
-        tablist.attr('aria-owns', owns.join(' '));
-      }
-    });
-
-    return tablist;
-  };
-/** internal
- * Xooie.Tab#_render_role_tablist() -> Element
- *
- * TODO: Add this method to render the tablist if it is not included.
- **/
-  Tab.prototype._render_role_tablist = function(){
-    return $('<ul data-x-role="tablist"></ul>');
-  };
-
-/** internal
- * Xooie.Tab#_process_role_tabpanel(tabpanels) -> Element
- * - tabpanels (Element): A jQuery-selected collection of [[Xooie.Tab#tabpanels]]
- *
- * This method processes the elements that have been designated as [[Xooie.Tab#tabpanels]] with
- * the `data-x-role="tabpanel"` attribute.  Tabs are given the [`role="tabpanel"`](http://www.w3.org/TR/wai-aria/roles#tab) and [`aria-expanded="false"`](http://www.w3.org/TR/wai-aria/states_and_properties#aria-selected)
- * [ARIA](http://www.w3.org/TR/wai-aria/) attributes.
- **/
-  Tab.prototype._process_role_tabpanel = function(tabpanels) {
-    tabpanels.attr('role', 'tabpanel')
-             .attr('aria-expanded', false);
-
-    return tabpanels;
-  };
-
-  return Tab;
-});
-
-define('xooie/widgets/accordion', ['jquery', 'xooie/widgets/tab'], function($, Tab){
-  var Accordion = Tab.extend(function() {
-  });
-
-  Accordion.define('namespace', 'accordion');
-
-/** internal
- * Xooie.Accordion#_process_role_tablist(tablist) -> Element
- * - tablist (Element): A jQuery-selected collection of [[Xooie.Tab#tablists]]
- *
- * Same as [[Xooie.Tab#_process_role_tablist]] and also adds the [`aria-multiselectable="true"`](http://www.w3.org/TR/wai-aria/states_and_properties#aria-multiselectable) attribute.
- **/
-  Accordion.prototype._process_role_tablist = function(tablist) {
-    Tab.prototype._process_role_tablist.apply(this, arguments);
-
-    tablist.attr('aria-multiselectable', true);
-
-    return tablist;
-  };
-
-  Accordion.prototype.selectTabs = function(event, selectedTab) {
-    var activeTabs = this.getActiveTabs();
-
-    if (activeTabs.is(selectedTab)) {
-      return activeTabs.not(selectedTab);
-    } else {
-      return activeTabs.add(selectedTab);
-    }
-  };
-
-  return Accordion;
-});
-
-/*
-*   Copyright 2013 Comcast
-*
-*   Licensed under the Apache License, Version 2.0 (the "License");
-*   you may not use this file except in compliance with the License.
-*   You may obtain a copy of the License at
-*
-*       http://www.apache.org/licenses/LICENSE-2.0
-*
-*   Unless required by applicable law or agreed to in writing, software
-*   distributed under the License is distributed on an "AS IS" BASIS,
-*   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-*   See the License for the specific language governing permissions and
-*   limitations under the License.
-*/
-
-define('xooie/dialog', ['jquery', 'xooie/base'], function($, Base) {
-
-    var Dialog = Base('dialog', function(){
-        var self = this;
-
-        this.id = Dialog._counter++;
-
-        Dialog._instances[this.id] = this;
-
-        this.root.attr('data-dialog-id', this.id);
-
-        //add accessibility attributes
-        this.root.find(this.options.containerSelector).attr('role', 'dialog');
-
-        this.root.addClass('xooie-dialog');
-
-        this.handlers = {
-            mouseup: function(event){
-                Dialog.close(self.id);
-            },
-
-            keyup: function(event){
-                if([13,32].indexOf(event.which) !== -1){
-                    Dialog.close(self.id);
-                }
-            }
-        };
-    });
-
-    Dialog.setDefaultOptions({
-        closeButtonSelector: '[data-role="closeButton"]',
-        containerSelector: '[data-role="container"]',
-
-        dialogActiveClass: 'is-dialog-active'
-    });
-
-    Dialog.setCSSRules({
-        '.xooie-dialog': {
-            position: 'fixed',
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0
-        }
-    });
-
-    Dialog.prototype.activate = function(){
-        this.root.addClass(this.options.dialogActiveClass);
-
-        if(Dialog._active === this) {
-            return;
-        }
-
-        if(Dialog._active){
-            Dialog._active.deactivate();
-        }
-
-        this.root.find(this.options.closeButtonSelector)
-                 .on(this.handlers);
-
-        Dialog._active = this;
-
-        this.root.trigger('dialogActive');
-    };
-
-    Dialog.prototype.deactivate = function(){
-        this.root.removeClass(this.options.dialogActiveClass);
-
-        if (Dialog._active !== this) {
-            return;
-        }
-
-        this.root.find(this.options.closeButtonSelector)
-                 .off(this.handlers);
-
-        Dialog._active = null;
-
-        this.root.trigger('dialogInactive');
-    };
-
-    Dialog._instances = [];
-    Dialog._counter = 0;
-    Dialog._active = null;
-    Dialog._queue = [];
-
-    Dialog.open = function(id){
-        //get dialog instance
-        var dialog = this._instances[id];
-
-        if (typeof dialog === 'undefined' || this._active === dialog){
-            return;
-        }
-
-        if (this._active) {
-            this._queue.push(dialog);
-        } else {
-            dialog.activate();
-        }
-
-    };
-
-    Dialog.close = function(){
-        //get dialog instance
-        if(!this._active) {
-            return;
-        }
-
-        this._active.deactivate();
-
-        if (this._queue.length > 0) {
-            this._queue.pop().activate();
-        }
-    };
-
-    return Dialog;
-});
-define("xooie/widgets/dialog", function(){});

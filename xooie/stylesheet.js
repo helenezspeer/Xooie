@@ -83,7 +83,9 @@ define('xooie/stylesheet', ['jquery', 'xooie/helpers'], function($, helpers) {
             } else {
                 //support for IE < 9
                 index = this.get().rules.length;
-                this.get().addRule(ruleName, propString, index);
+                if (propString !== "") {
+                    this.get().addRule(ruleName, propString, index);
+                }
                 rule = this.get().rules[index];
             }
         }

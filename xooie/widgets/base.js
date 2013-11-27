@@ -95,20 +95,36 @@ define('xooie/widgets/base', ['jquery', 'xooie/xooie', 'xooie/helpers', 'xooie/s
  * Recursively checks for the next available index in [[$X._instanceCache]] using [[$X._instanceIndex]]
  * as a reference point.  Returns the index.
  **/
-  function cacheInstance(instance) {
-    if (!helpers.isUndefined(instance)) {
+   function cacheInstance (instance) {
+    if (typeof instance !== 'undefined') {
       var index = $X._instanceIndex;
 
       $X._instanceIndex += 1;
 
-      if (!helpers.isUndefined($X._instanceCache[index])) {
+      if (typeof $X._instanceCache[index] === 'undefined') {
         $X._instanceCache[index] = instance;
 
         return index;
+      } else {
+        return cacheInstance(instance);
       }
-      return cacheInstance(instance);
     }
   }
+
+  // function cacheInstance(instance) {
+  //   if (!helpers.isUndefined(instance)) {
+  //     var index = $X._instanceIndex;
+
+  //     $X._instanceIndex += 1;
+
+  //     if (!helpers.isUndefined($X._instanceCache[index])) {
+  //       $X._instanceCache[index] = instance;
+
+  //       return index;
+  //     }
+  //     return cacheInstance(instance);
+  //   }
+  // }
 
 /**
  * new Xooie.Widget(element[, addons])
