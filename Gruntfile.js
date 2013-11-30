@@ -42,6 +42,12 @@ module.exports = function(grunt) {
           out: "source/javascripts/xooie-<%= pkg.version %>-min.js",
           optimize: "uglify"
         }
+      },
+      copy: {
+        main: {
+          src: ["source/javascripts/xooie-<%= pkg.version %>-min.js"], 
+          dest: "../Front End Development/My Account/Desktop/includes_cui/scripts/xooie-plus-necessary-modules.js" 
+        }
       }
     },
     jasmine: {
@@ -91,6 +97,7 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-contrib-jasmine');
   grunt.loadNpmTasks('grunt-contrib-jshint');
   grunt.loadNpmTasks('grunt-jslint');
+  grunt.loadNpmTasks('grunt-contrib-copy');
 
   grunt.registerTask('test', ['jshint', 'jasmine']);
   grunt.registerTask('build', ['requirejs']);

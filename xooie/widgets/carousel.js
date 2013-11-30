@@ -104,7 +104,8 @@ define('xooie/widgets/carousel', ['jquery', 'xooie/helpers', 'xooie/widgets/base
  **/
     this._timers = {
       scroll: 0,
-      continuous: 0
+      continuous: 0,
+      auto: 0
     };
 
 /** internal
@@ -244,6 +245,7 @@ define('xooie/widgets/carousel', ['jquery', 'xooie/helpers', 'xooie/widgets/base
 
       keyup: function(event) {
         self._timers.continuous = clearInterval(self._timers.continuous);
+        self._timers.auto = clearInterval(self._timers.auto);
 
         if ($(this).is(':disabled')) {
           return;
@@ -262,6 +264,7 @@ define('xooie/widgets/carousel', ['jquery', 'xooie/helpers', 'xooie/widgets/base
 
       mouseup: function(event) {
         self._timers.continuous = clearInterval(self._timers.continuous);
+        self._timers.auto = clearInterval(self._timers.auto);
 
         if ($(this).is(':disabled')) {
           return;
@@ -321,8 +324,22 @@ define('xooie/widgets/carousel', ['jquery', 'xooie/helpers', 'xooie/widgets/base
     self.root().on('focus', 'a, input, select', function(event) {
         var thisItem = $(this).closest('[id*="item"]');
         var index = self._get_role_item().index(thisItem);
+        self._timers.auto = clearInterval(self._timers.auto);
         self._positioners.item.apply(self, ['goto', (index + 1).toString(), 'item']);
     });
+
+    // Helene added automatic scrolling
+    // add data-x-role to carousel element with "auto:[sec]", for instance data-x-role="auto:15" for a 15-second interval.
+    var args = self.root().attr('data-x-role').split(':');
+    if (args[0] === 'auto') {
+        self._timers.auto = setInterval(function() {
+            if (self.isRight()) {
+                self._positioners.item.apply(self, ['goto', '1', 'item']);
+            } else {
+                self._positioners.item.apply(self, ['right', '1', 'item']);
+            }
+        }, parseInt(args[1])*1000);
+    }
 
     this.cropStyle(Carousel.createStyleRule('.' + this.instanceClass() + ' .' + this.cropClass() + ', .' + this.instanceClass() + '.' + this.cropClass()));
 
