@@ -66,16 +66,9 @@ module.exports = function(grunt) {
         }
       }
     },
-    jshint: {
-      files: 'xooie/**/*.js',
-      options: {
-        reporter: 'jslint'
-      }
-    },
     jslint: {
-      //src: ['xooie/**/*.js'],
       xooie: {
-        src: ['xooie/addons/base.js', 'xooie/widgets/base.js'],
+        src: ['xooie/**/*.js'],
         directives: {
           todo: true,
           nomen: true,
@@ -84,7 +77,12 @@ module.exports = function(grunt) {
           predef: [
             'define',
             'require',
+            'window',
+            'document',
             'setTimeout',
+            'clearTimeout',
+            'setInterval',
+            'clearInterval',
             'Mustache',
             '_'
           ]
@@ -95,11 +93,10 @@ module.exports = function(grunt) {
 
   grunt.loadNpmTasks('grunt-contrib-requirejs');
   grunt.loadNpmTasks('grunt-contrib-jasmine');
-  grunt.loadNpmTasks('grunt-contrib-jshint');
   grunt.loadNpmTasks('grunt-jslint');
   grunt.loadNpmTasks('grunt-contrib-copy');
 
-  grunt.registerTask('test', ['jshint', 'jasmine']);
+  grunt.registerTask('test', ['jslint', 'jasmine']);
   grunt.registerTask('build', ['requirejs']);
 
 };
