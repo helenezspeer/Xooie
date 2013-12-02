@@ -134,7 +134,7 @@ define('xooie/widgets/carousel', ['jquery', 'xooie/helpers', 'xooie/widgets/base
           return;
         }
 
-         if (direction === 'goto' && quantity > 1 && quantity <= items.length) {
+        if (direction === 'goto' && quantity > 0 && quantity <= items.length) {
           pos = Math.round(items.eq(quantity - 1).position().left) - this.contents().position().left;
 
         // Adina's Workaround
